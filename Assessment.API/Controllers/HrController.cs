@@ -1,12 +1,14 @@
 ﻿using Assessment.API.Common;
 using Assessment.Application.DTOs.Hr;
 using Assessment.Application.Interfaces;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Assessment.API.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
+    [Authorize(Roles = "Admin")]
     public class HrController : ControllerBase
     {
         private readonly IHrTestService _service;
@@ -52,7 +54,7 @@ namespace Assessment.API.Controllers
             }
         }
 
-        // ✅ Token route for public link (enforces expiry)
+        [AllowAnonymous]
         [HttpGet("tests/by-token/{token}")]
         public async Task<IActionResult> GetByToken([FromRoute] string token)
         {
@@ -82,6 +84,29 @@ namespace Assessment.API.Controllers
             return Ok(ApiResponse<object>.Success(data, "Test created"));
         }
 
+        [HttpPut("tests/{testId:guid}")]
+        public async Task<IActionResult> Update([FromRoute] Guid testId, [FromBody] UpdateHrTestRequestDto dto)
+        {
+            try
+            {
+                var data = await _service.UpdateAsync(testId, dto);
+                return Ok(ApiResponse<object>.Success(data, "Test updated"));
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(ApiResponse<object>.Fail(ex.Message));
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(ApiResponse<object>.Fail(ex.Message));
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Conflict(ApiResponse<object>.Fail(ex.Message));
+            }
+        }
+
+        [AllowAnonymous]
         [HttpPost("tests/{testId:guid}/submit")]
         public async Task<IActionResult> Submit([FromRoute] Guid testId)
         {

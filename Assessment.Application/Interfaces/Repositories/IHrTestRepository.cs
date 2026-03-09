@@ -32,6 +32,6 @@ namespace Assessment.Application.Interfaces.Repositories
 
         Task<int> CountTestsAsync();
         Task<List<HrTest>> GetTestsPagedAsync(int skip, int take);
-        Task<List<Question>> GetAssignedQuestionsForTestAsync(Guid testId);
+        Task<List<HrTestQuestion>> GetAssignedQuestionsForTestAsync(Guid testId);
     }
 }

@@ -1,5 +1,6 @@
 ﻿using Assessment.Application.DTOs.Auth;
 using Assessment.Application.Interfaces;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Assessment.API.Controllers
@@ -15,8 +16,9 @@ namespace Assessment.API.Controllers
             _auth = auth;
         }
 
-        [HttpPost("register")]
-        public async Task<IActionResult> Register([FromBody] RegisterRequestDto dto)
+        [AllowAnonymous]
+        [HttpPost("login")]
+        public async Task<IActionResult> Login([FromBody] LoginRequestDto dto)
         {
             if (!ModelState.IsValid)
             {
@@ -30,12 +32,12 @@ namespace Assessment.API.Controllers
 
             try
             {
-                var result = await _auth.RegisterAsync(dto);
+                var result = await _auth.LoginAsync(dto);
                 return Ok(result);
             }
-            catch (Exception ex)
+            catch (UnauthorizedAccessException ex)
             {
-                return BadRequest(new { message = ex.Message });
+                return Unauthorized(new { message = ex.Message });
             }
         }
     }

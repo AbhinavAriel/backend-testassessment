@@ -1,6 +1,7 @@
 ﻿using Assessment.API.Common;
 using Assessment.Application.DTOs.Questions;
 using Assessment.Application.Interfaces;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Assessment.API.Controllers
@@ -26,6 +27,29 @@ namespace Assessment.API.Controllers
                     : await _questions.GetQuestionsAsync();
 
                 return Ok(ApiResponse<List<QuestionResponseDto>>.Success(list));
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(ApiResponse<object>.Fail(ex.Message));
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(ApiResponse<object>.Fail(ex.Message));
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Conflict(ApiResponse<object>.Fail(ex.Message));
+            }
+        }
+
+        [Authorize(Roles = "Admin")]
+        [HttpPost]
+        public async Task<IActionResult> Create([FromBody] CreateQuestionRequestDto dto)
+        {
+            try
+            {
+                var data = await _questions.CreateAsync(dto);
+                return Ok(ApiResponse<QuestionResponseDto>.Success(data, "Question created successfully."));
             }
             catch (ArgumentException ex)
             {

@@ -66,7 +66,6 @@ namespace Assessment.Infrastructure.Services
                 var applicantName = BuildApplicantName(t.Applicant);
                 statsMap.TryGetValue(t.Id, out var s);
 
-                // ✅ FIX: For Submitted tests, prefer stored counts on HrTest
                 var isSubmitted = string.Equals(t.Status, "Submitted", StringComparison.OrdinalIgnoreCase);
 
                 var answeredCountFinal = isSubmitted ? t.AnsweredCount : s.Answered;
@@ -92,7 +91,6 @@ namespace Assessment.Infrastructure.Services
 
                     TechStacks = t.TechStacks.Select(x => x.TechStack.Name).ToList(),
 
-                    // ✅ IMPORTANT (copy link uses this)
                     TestToken = t.TestToken ?? "",
                     ExpiresAtUtc = t.ExpiresAtUtc
                 };
@@ -132,7 +130,6 @@ namespace Assessment.Infrastructure.Services
                 var applicantName = BuildApplicantName(t.Applicant);
                 statsMap.TryGetValue(t.Id, out var s);
 
-                // ✅ FIX: For Submitted tests, prefer stored counts on HrTest
                 var isSubmitted = string.Equals(t.Status, "Submitted", StringComparison.OrdinalIgnoreCase);
 
                 var answeredCountFinal = isSubmitted ? t.AnsweredCount : s.Answered;
@@ -157,7 +154,6 @@ namespace Assessment.Infrastructure.Services
 
                     TechStacks = t.TechStacks.Select(x => x.TechStack.Name).ToList(),
 
-                    // ✅ IMPORTANT
                     TestToken = t.TestToken ?? "",
                     ExpiresAtUtc = t.ExpiresAtUtc
                 };
@@ -394,20 +390,45 @@ namespace Assessment.Infrastructure.Services
 
             var test = await _db.HrTests.AsNoTracking()
                 .Include(t => t.Applicant)
+                .Include(t => t.TechStacks)
+                    .ThenInclude(ts => ts.TechStack)
                 .FirstOrDefaultAsync(t => t.TestToken == token);
 
             if (test == null)
                 throw new KeyNotFoundException("Invalid or expired test link.");
 
-            if (test.ExpiresAtUtc < DateTime.UtcNow)
+            if (test.ExpiresAtUtc <= DateTime.UtcNow)
                 throw new InvalidOperationException("This test link has expired.");
+
+            var applicantName = BuildApplicantName(test.Applicant);
 
             return new
             {
                 testId = test.Id,
                 applicantId = test.ApplicantId,
-                expiresAtUtc = test.ExpiresAtUtc,
-                status = test.Status
+                applicant = new
+                {
+                    id = test.ApplicantId,
+                    fullName = applicantName,
+                    email = test.Applicant?.Email ?? "",
+                    phoneNumber = test.Applicant?.PhoneNumber ?? ""
+                },
+                techStacks = test.TechStacks
+                    .Where(x => x.TechStack != null)
+                    .Select(x => x.TechStack.Name)
+                    .ToList(),
+                test = new
+                {
+                    totalQuestions = test.TotalQuestions,
+                    durationMinutes = test.DurationMinutes,
+                    level = test.Level,
+                    status = test.Status,
+                    answeredCount = test.AnsweredCount,
+                    correctCount = test.CorrectCount,
+                    createdAtUtc = test.CreatedAtUtc,
+                    submittedAtUtc = test.SubmittedAtUtc,
+                    expiresAtUtc = test.ExpiresAtUtc
+                }
             };
         }
 
@@ -461,7 +482,6 @@ namespace Assessment.Infrastructure.Services
                 Id = q.Id,
                 Order = idx + 1,
                 Text = q.Text,
-                TimeLimitSeconds = q.TimeLimitSeconds,
                 Level = q.Level.ToString(),
                 Options = q.Options.Select(o => new AnswerOptionResponseDto
                 {

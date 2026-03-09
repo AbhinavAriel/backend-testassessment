@@ -1,12 +1,9 @@
-using Assessment.Domain.Entities;
+using Assessment.Infrastructure.Identity;
 using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
-using System;
-using System.Collections.Generic;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
-using Assessment.Infrastructure.Identity;
 
 namespace Assessment.Infrastructure.Security
 {
@@ -19,17 +16,27 @@ namespace Assessment.Infrastructure.Security
             _config = config;
         }
 
-        public string Generate(ApplicationUser user)
+        public (string Token, DateTime ExpiresAtUtc) Generate(ApplicationUser user, IEnumerable<string>? roles = null)
         {
             var jwtKey = _config["Jwt:Key"]!;
             var jwtIssuer = _config["Jwt:Issuer"]!;
             var jwtAudience = _config["Jwt:Audience"]!;
+            var expiresAtUtc = DateTime.UtcNow.AddHours(6);
 
             var claims = new List<Claim>
             {
-                new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
-                new Claim(ClaimTypes.Email, user.Email ?? "")
+                new(ClaimTypes.NameIdentifier, user.Id.ToString()),
+                new(ClaimTypes.Name, user.FullName ?? string.Empty),
+                new(ClaimTypes.Email, user.Email ?? string.Empty)
             };
+
+            foreach (var role in roles ?? Enumerable.Empty<string>())
+            {
+                if (!string.IsNullOrWhiteSpace(role))
+                {
+                    claims.Add(new Claim(ClaimTypes.Role, role));
+                }
+            }
 
             var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey));
             var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
@@ -38,11 +45,11 @@ namespace Assessment.Infrastructure.Security
                 issuer: jwtIssuer,
                 audience: jwtAudience,
                 claims: claims,
-                expires: DateTime.UtcNow.AddHours(6),
+                expires: expiresAtUtc,
                 signingCredentials: creds
             );
 
-            return new JwtSecurityTokenHandler().WriteToken(token);
+            return (new JwtSecurityTokenHandler().WriteToken(token), expiresAtUtc);
         }
     }
-}   
+}

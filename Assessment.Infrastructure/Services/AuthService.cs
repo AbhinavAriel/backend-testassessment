@@ -1,6 +1,7 @@
 ﻿using Assessment.Application.DTOs.Auth;
 using Assessment.Application.Interfaces;
 using Assessment.Infrastructure.Identity;
+using Assessment.Infrastructure.Security;
 using Microsoft.AspNetCore.Identity;
 
 namespace Assessment.Infrastructure.Services
@@ -8,43 +9,49 @@ namespace Assessment.Infrastructure.Services
     public class AuthService : IAuthService
     {
         private readonly UserManager<ApplicationUser> _userManager;
+        private readonly SignInManager<ApplicationUser> _signInManager;
+        private readonly JwtTokenGenerator _jwtTokenGenerator;
 
-        public AuthService(UserManager<ApplicationUser> userManager)
+        public AuthService(
+            UserManager<ApplicationUser> userManager,
+            SignInManager<ApplicationUser> signInManager,
+            JwtTokenGenerator jwtTokenGenerator)
         {
             _userManager = userManager;
+            _signInManager = signInManager;
+            _jwtTokenGenerator = jwtTokenGenerator;
         }
 
-        public async Task<RegisterResponseDto> RegisterAsync(RegisterRequestDto dto)
+        public async Task<LoginResponseDto> LoginAsync(LoginRequestDto dto)
         {
-            var email = (dto.Email ?? "").Trim();
+            var email = (dto.Email ?? string.Empty).Trim();
+            var password = dto.Password ?? string.Empty;
 
-            var existing = await _userManager.FindByEmailAsync(email);
-            if (existing != null)
-                throw new Exception("Email already registered.");
+            var user = await _userManager.FindByEmailAsync(email);
+            if (user == null)
+                throw new UnauthorizedAccessException("Invalid email or password.");
 
-            var user = new ApplicationUser
+            var signInResult = await _signInManager.CheckPasswordSignInAsync(user, password, lockoutOnFailure: false);
+            if (!signInResult.Succeeded)
+                throw new UnauthorizedAccessException("Invalid email or password.");
+
+            var roles = await _userManager.GetRolesAsync(user);
+            if (!roles.Contains("Admin"))
+                throw new UnauthorizedAccessException("You are not allowed to access the admin portal.");
+
+            var jwt = _jwtTokenGenerator.Generate(user, roles);
+
+            return new LoginResponseDto
             {
-                Id = Guid.NewGuid(),
-                FullName = (dto.FullName ?? "").Trim(),
-                Email = email,
-                UserName = email,
-                PhoneNumber = (dto.PhoneNumber ?? "").Trim(),
-                EmailConfirmed = true,
-                PhoneNumberConfirmed = true
-            };
-
-            var internalPassword = GenerateInternalPassword();
-
-            var result = await _userManager.CreateAsync(user, internalPassword);
-            if (!result.Succeeded)
-                throw new Exception(string.Join(" | ", result.Errors.Select(e => e.Description)));
-
-            return new RegisterResponseDto
-            {
-                Id = user.Id,
-                FullName = user.FullName,
-                Email = user.Email ?? "",
-                PhoneNumber = user.PhoneNumber ?? ""
+                Token = jwt.Token,
+                ExpiresAtUtc = jwt.ExpiresAtUtc,
+                User = new AdminUserDto
+                {
+                    Id = user.Id,
+                    FullName = user.FullName,
+                    Email = user.Email ?? string.Empty,
+                    Roles = roles.ToList()
+                }
             };
         }
 

@@ -176,14 +176,13 @@ namespace Assessment.Infrastructure.Repositories
 
         public Task SaveChangesAsync() => _db.SaveChangesAsync();
 
-        public async Task<List<Question>> GetAssignedQuestionsForTestAsync(Guid testId)
+        public async Task<List<HrTestQuestion>> GetAssignedQuestionsForTestAsync(Guid testId)
         {
             return await _db.HrTestQuestions.AsNoTracking()
                 .Where(x => x.TestId == testId)
                 .OrderBy(x => x.Order)
                 .Include(x => x.Question)
                     .ThenInclude(q => q.Options)
-                .Select(x => x.Question)
                 .ToListAsync();
         }
     }
