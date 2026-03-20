@@ -88,6 +88,10 @@ namespace Assessment.Infrastructure.Services
 
                     AnsweredCount = answeredCountFinal,
                     CorrectCount = correctCountFinal,
+                    ScorePercentage = t.TotalQuestions > 0
+                        ? (decimal)Math.Round((double)correctCountFinal / t.TotalQuestions * 100, 2)
+                        : 0,
+                    IsPassed = t.TotalQuestions > 0 && (decimal)Math.Round((double)correctCountFinal / t.TotalQuestions * 100, 2) >= 75,
 
                     TechStacks = t.TechStacks.Select(x => x.TechStack.Name).ToList(),
 
@@ -151,6 +155,10 @@ namespace Assessment.Infrastructure.Services
 
                     AnsweredCount = answeredCountFinal,
                     CorrectCount = correctCountFinal,
+                    ScorePercentage = t.TotalQuestions > 0
+                        ? (decimal)Math.Round((double)correctCountFinal / t.TotalQuestions * 100, 2)
+                        : 0,
+                    IsPassed = t.TotalQuestions > 0 && (decimal)Math.Round((double)correctCountFinal / t.TotalQuestions * 100, 2) >= 75,
 
                     TechStacks = t.TechStacks.Select(x => x.TechStack.Name).ToList(),
 
@@ -450,7 +458,88 @@ namespace Assessment.Infrastructure.Services
 
         public async Task<HrTestRowDto> UpdateAsync(Guid testId, UpdateHrTestRequestDto dto)
         {
-            throw new NotImplementedException("Keep your existing update logic if you need it.");
+            if (testId == Guid.Empty) throw new ArgumentException("Invalid testId.");
+            if (dto == null) throw new ArgumentException("Invalid payload.");
+
+            var test = await _db.HrTests
+                .Include(t => t.Applicant)
+                .Include(t => t.TechStacks)
+                .FirstOrDefaultAsync(t => t.Id == testId);
+
+            if (test == null) throw new KeyNotFoundException("Test not found.");
+
+            var applicant = await _db.HrApplicants.FirstOrDefaultAsync(a => a.Id == test.ApplicantId);
+            if (applicant == null) throw new KeyNotFoundException("Applicant not found.");
+
+            // Update applicant details
+            if (!string.IsNullOrWhiteSpace(dto.FullName))
+            {
+                var (first, last) = SplitName(dto.FullName);
+                applicant.FirstName = first;
+                applicant.LastName = last;
+            }
+
+            if (!string.IsNullOrWhiteSpace(dto.PhoneNumber))
+                applicant.PhoneNumber = dto.PhoneNumber.Trim();
+
+            applicant.UpdatedAtUtc = DateTime.UtcNow;
+
+            // Update test fields
+            if (dto.TotalQuestions > 0) test.TotalQuestions = dto.TotalQuestions;
+            if (dto.DurationMinutes > 0) test.DurationMinutes = dto.DurationMinutes;
+            if (!string.IsNullOrWhiteSpace(dto.Level)) test.Level = dto.Level;
+
+            // Update tech stacks
+            var techIds = dto.TechStackIds?.Where(x => x != Guid.Empty).Distinct().ToList() ?? new List<Guid>();
+
+            if (techIds.Count > 0)
+            {
+                var validCount = await _repo.CountTechStacksByIdsAsync(techIds);
+                if (validCount != techIds.Count)
+                    throw new ArgumentException("One or more TechStackIds are invalid.");
+
+                await _repo.RemoveTechStacksByTestIdAsync(testId);
+                await _db.SaveChangesAsync();
+
+                var newLinks = techIds.Select(tid => new HrTestTechStack
+                {
+                    Id = Guid.NewGuid(),
+                    TestId = testId,
+                    TechStackId = tid
+                }).ToList();
+
+                await _repo.AddTechStacksAsync(newLinks);
+            }
+
+            await _db.SaveChangesAsync();
+
+            var finalTechIds = techIds.Count > 0
+                ? techIds
+                : test.TechStacks.Select(x => x.TechStackId).ToList();
+
+            var techNames = await _repo.GetTechStackNamesByIdsAsync(finalTechIds);
+
+            return new HrTestRowDto
+            {
+                TestId = test.Id,
+                ApplicantId = test.ApplicantId,
+                ApplicantName = BuildApplicantName(applicant),
+                Email = applicant.Email,
+                PhoneNumber = applicant.PhoneNumber ?? "",
+                TotalQuestions = test.TotalQuestions,
+                DurationMinutes = test.DurationMinutes,
+                Level = test.Level,
+                Status = test.Status,
+                CreatedAtUtc = test.CreatedAtUtc,
+                SubmittedAtUtc = test.SubmittedAtUtc,
+                AnsweredCount = test.AnsweredCount,
+                CorrectCount = test.CorrectCount,
+                ScorePercentage = test.ScorePercentage,
+                IsPassed = test.IsPassed,
+                TechStacks = techNames,
+                TestToken = test.TestToken ?? "",
+                ExpiresAtUtc = test.ExpiresAtUtc
+            };
         }
 
         public async Task<List<QuestionResponseDto>> GetQuestionsForTestAsync(Guid testId)
@@ -513,6 +602,10 @@ namespace Assessment.Infrastructure.Services
 
             test.AnsweredCount = answered;
             test.CorrectCount = correct;
+            test.ScorePercentage = test.TotalQuestions > 0
+                ? (decimal)Math.Round((double)correct / test.TotalQuestions * 100, 2)
+                : 0m;
+            test.IsPassed = test.ScorePercentage >= 75m;
             test.Status = "Submitted";
             test.SubmittedAtUtc = DateTime.UtcNow;
 
@@ -584,6 +677,10 @@ namespace Assessment.Infrastructure.Services
             var answeredCount = answers.Count(x => x.SelectedOptionId != null);
             var correctCount = answers.Count(x => x.IsCorrect == true);
 
+            var scorePercentage = test.TotalQuestions > 0
+                ? (decimal)Math.Round((double)correctCount / test.TotalQuestions * 100, 2)
+                : 0;
+
             var report = new HrTestReportDto
             {
                 TestId = test.Id,
@@ -597,9 +694,11 @@ namespace Assessment.Infrastructure.Services
                 Status = test.Status ?? "",
 
                 TotalQuestions = test.TotalQuestions,
-                DurationMinutes = test.DurationMinutes, 
+                DurationMinutes = test.DurationMinutes,
                 AnsweredCount = answeredCount,
                 CorrectCount = correctCount,
+                ScorePercentage = scorePercentage,
+                IsPassed = scorePercentage >= 75,
 
                 CreatedAtUtc = test.CreatedAtUtc,
                 SubmittedAtUtc = test.SubmittedAtUtc,

@@ -43,6 +43,8 @@ namespace Assessment.Application.DTOs.Hr
 
         public int AnsweredCount { get; set; }
         public int CorrectCount { get; set; }
+        public decimal ScorePercentage { get; set; }
+        public bool IsPassed { get; set; }
 
         public DateTime CreatedAtUtc { get; set; }
         public DateTime? SubmittedAtUtc { get; set; }
@@ -70,12 +72,13 @@ namespace Assessment.Application.DTOs.Hr
     // -------- Update --------
     public class UpdateHrTestRequestDto
     {
+        public string FullName { get; set; } = "";
+        public string PhoneNumber { get; set; } = "";
         public List<Guid> TechStackIds { get; set; } = new();
 
         public int TotalQuestions { get; set; }
         public int DurationMinutes { get; set; }
-        public string Level { get; set; } = "Beginner";
-        public string Status { get; set; } = "Created";
+        public string Level { get; set; } = "";
     }
 
     // -------- Detail --------

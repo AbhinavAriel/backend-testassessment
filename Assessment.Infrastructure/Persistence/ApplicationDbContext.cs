@@ -77,6 +77,10 @@ namespace Assessment.Infrastructure.Persistence
             b.Entity<HrTestQuestion>()
                 .HasIndex(x => new { x.TestId, x.Order })
                 .IsUnique();
+
+            b.Entity<HrTest>()
+                .Property(x => x.ScorePercentage)
+                .HasColumnType("decimal(5,2)");
         }
     }
 }

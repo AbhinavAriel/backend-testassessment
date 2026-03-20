@@ -10,8 +10,6 @@ namespace Assessment.Domain.Entities
         public int Order { get; set; }
 
         public string Text { get; set; } = "";
-
-
         public QuestionLevel Level { get; set; }
 
         public bool IsActive { get; set; } = true;

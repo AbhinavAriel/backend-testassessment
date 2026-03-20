@@ -23,6 +23,11 @@ public class HrTestScoringService
 
         var (answered, correct) = await _hrRepo.GetScoreCountsAsync(testId);
 
+        var scorePercentage = test.TotalQuestions > 0
+            ? Math.Round((double)correct / test.TotalQuestions * 100, 2)
+            : 0;
+
+
         test.AnsweredCount = answered;
         test.CorrectCount = correct;
         test.Status = "Submitted";
