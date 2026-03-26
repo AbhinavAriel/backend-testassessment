@@ -22,6 +22,8 @@ namespace Assessment.Infrastructure.Persistence
 
         public DbSet<UserAnswer> UserAnswers => Set<UserAnswer>();
 
+        public DbSet<TestSnapshot> TestSnapshots => Set<TestSnapshot>();
+
         protected override void OnModelCreating(ModelBuilder b)
         {
             base.OnModelCreating(b);
@@ -60,7 +62,7 @@ namespace Assessment.Infrastructure.Persistence
                 .OnDelete(DeleteBehavior.Restrict);
 
             b.Entity<HrTestQuestion>()
-    .HasKey(x => new { x.TestId, x.QuestionId });
+                .HasKey(x => new { x.TestId, x.QuestionId });
 
             b.Entity<HrTestQuestion>()
                 .HasOne(x => x.Test)
@@ -81,6 +83,23 @@ namespace Assessment.Infrastructure.Persistence
             b.Entity<HrTest>()
                 .Property(x => x.ScorePercentage)
                 .HasColumnType("decimal(5,2)");
+
+           
+            b.Entity<TestSnapshot>()
+                .HasOne(s => s.Test)
+                .WithMany()
+                .HasForeignKey(s => s.TestId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            b.Entity<TestSnapshot>()
+                .HasOne(s => s.Applicant)
+                .WithMany()
+                .HasForeignKey(s => s.ApplicantId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            b.Entity<TestSnapshot>()
+                .Property(s => s.ImageData)
+                .HasColumnType("nvarchar(max)");
         }
     }
 }

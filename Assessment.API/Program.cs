@@ -102,6 +102,8 @@ builder.Services.AddScoped<IQuestionRepository, QuestionRepository>();
 builder.Services.AddScoped<IAnswerRepository, AnswerRepository>();
 builder.Services.AddScoped<IAnswerService, AnswerService>();
 
+builder.Services.AddScoped<ISnapshotService, SnapshotService>();
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowReact", policy =>
