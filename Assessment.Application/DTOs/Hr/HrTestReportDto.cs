@@ -21,6 +21,7 @@ namespace Assessment.Application.DTOs.Hr
         public int CorrectCount { get; set; }
         public decimal ScorePercentage { get; set; }
         public bool IsPassed { get; set; }
+        public bool IsRejected { get; set; }
 
         public DateTime CreatedAtUtc { get; set; }
         public DateTime? SubmittedAtUtc { get; set; }

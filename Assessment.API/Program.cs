@@ -102,7 +102,8 @@ builder.Services.AddScoped<IQuestionRepository, QuestionRepository>();
 builder.Services.AddScoped<IAnswerRepository, AnswerRepository>();
 builder.Services.AddScoped<IAnswerService, AnswerService>();
 
-builder.Services.AddScoped<ISnapshotService, SnapshotService>();
+// ── Supabase Storage — plain HttpClient, no extra NuGet needed ───────────────
+builder.Services.AddHttpClient<ISnapshotService, SnapshotService>();
 
 builder.Services.AddCors(options =>
 {

@@ -91,7 +91,8 @@ namespace Assessment.Infrastructure.Services
                     ScorePercentage = t.TotalQuestions > 0
                         ? (decimal)Math.Round((double)correctCountFinal / t.TotalQuestions * 100, 2)
                         : 0,
-                    IsPassed = t.TotalQuestions > 0 && (decimal)Math.Round((double)correctCountFinal / t.TotalQuestions * 100, 2) >= 75,
+                    IsPassed = !t.IsRejected && t.TotalQuestions > 0 && (decimal)Math.Round((double)correctCountFinal / t.TotalQuestions * 100, 2) >= 75,
+                    IsRejected = t.IsRejected,
 
                     TechStacks = t.TechStacks.Select(x => x.TechStack.Name).ToList(),
 
@@ -158,7 +159,8 @@ namespace Assessment.Infrastructure.Services
                     ScorePercentage = t.TotalQuestions > 0
                         ? (decimal)Math.Round((double)correctCountFinal / t.TotalQuestions * 100, 2)
                         : 0,
-                    IsPassed = t.TotalQuestions > 0 && (decimal)Math.Round((double)correctCountFinal / t.TotalQuestions * 100, 2) >= 75,
+                    IsPassed = !t.IsRejected && t.TotalQuestions > 0 && (decimal)Math.Round((double)correctCountFinal / t.TotalQuestions * 100, 2) >= 75,
+                    IsRejected = t.IsRejected,
 
                     TechStacks = t.TechStacks.Select(x => x.TechStack.Name).ToList(),
 
@@ -535,7 +537,8 @@ namespace Assessment.Infrastructure.Services
                 AnsweredCount = test.AnsweredCount,
                 CorrectCount = test.CorrectCount,
                 ScorePercentage = test.ScorePercentage,
-                IsPassed = test.IsPassed,
+                IsPassed = test.IsPassed && !test.IsRejected,
+                IsRejected = test.IsRejected,
                 TechStacks = techNames,
                 TestToken = test.TestToken ?? "",
                 ExpiresAtUtc = test.ExpiresAtUtc
@@ -698,7 +701,8 @@ namespace Assessment.Infrastructure.Services
                 AnsweredCount = answeredCount,
                 CorrectCount = correctCount,
                 ScorePercentage = scorePercentage,
-                IsPassed = scorePercentage >= 75,
+                IsPassed = scorePercentage >= 75 && !test.IsRejected,
+                IsRejected = test.IsRejected,
 
                 CreatedAtUtc = test.CreatedAtUtc,
                 SubmittedAtUtc = test.SubmittedAtUtc,
@@ -747,6 +751,23 @@ namespace Assessment.Infrastructure.Services
             }
 
             return report;
+        }
+
+        public async Task RejectTestAsync(Guid testId)
+        {
+            if (testId == Guid.Empty) throw new ArgumentException("Invalid testId.");
+
+            var test = await _db.HrTests.FirstOrDefaultAsync(x => x.Id == testId);
+            if (test == null) throw new KeyNotFoundException("Test not found.");
+
+            if (!string.Equals(test.Status, "Submitted", StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("Only submitted tests can be rejected.");
+
+            if (!test.IsPassed)
+                throw new InvalidOperationException("Only passed tests can be rejected by admin.");
+
+            test.IsRejected = true;
+            await _db.SaveChangesAsync();
         }
 
         private static QuestionLevel ParseLevel(string? level)

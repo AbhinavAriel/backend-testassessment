@@ -32,6 +32,10 @@ namespace Assessment.API.Controllers
             return Ok(ApiResponse<object>.Success(data));
         }
 
+        // ✅ AllowAnonymous: candidates call this during the test flow
+        //    (PolicyAgreement validates test status, useAssessmentData loads duration/applicant)
+        //    No admin token exists in the candidate's browser.
+        [AllowAnonymous]
         [HttpGet("tests/{testId:guid}")]
         public async Task<IActionResult> GetById([FromRoute] Guid testId)
         {
@@ -54,6 +58,7 @@ namespace Assessment.API.Controllers
             }
         }
 
+        // ✅ AllowAnonymous: candidates open test link — no admin token
         [AllowAnonymous]
         [HttpGet("tests/by-token/{token}")]
         public async Task<IActionResult> GetByToken([FromRoute] string token)
@@ -106,6 +111,7 @@ namespace Assessment.API.Controllers
             }
         }
 
+        // ✅ AllowAnonymous: candidates submit their test — no admin token
         [AllowAnonymous]
         [HttpPost("tests/{testId:guid}/submit")]
         public async Task<IActionResult> Submit([FromRoute] Guid testId)
@@ -141,6 +147,28 @@ namespace Assessment.API.Controllers
         {
             await _service.DeleteTestAsync(testId);
             return Ok(ApiResponse<object>.Success(null, "Deleted"));
+        }
+
+        [HttpPatch("tests/{testId:guid}/reject")]
+        public async Task<IActionResult> Reject([FromRoute] Guid testId)
+        {
+            try
+            {
+                await _service.RejectTestAsync(testId);
+                return Ok(ApiResponse<object>.Success(null, "Candidate result rejected."));
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(ApiResponse<object>.Fail(ex.Message));
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(ApiResponse<object>.Fail(ex.Message));
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Conflict(ApiResponse<object>.Fail(ex.Message));
+            }
         }
     }
 }

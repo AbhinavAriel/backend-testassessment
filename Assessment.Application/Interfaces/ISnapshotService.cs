@@ -7,9 +7,10 @@ namespace Assessment.Application.Interfaces
 {
     public interface ISnapshotService
     {
-       
         Task<SnapshotResponseDto> UploadAsync(UploadSnapshotRequestDto dto);
 
         Task<List<SnapshotResponseDto>> GetByTestIdAsync(Guid testId);
+
+        Task<(byte[] Bytes, string ContentType)> GetImageAsync(Guid snapshotId);
     }
 }

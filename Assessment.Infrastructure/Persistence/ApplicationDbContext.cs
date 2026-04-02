@@ -84,7 +84,6 @@ namespace Assessment.Infrastructure.Persistence
                 .Property(x => x.ScorePercentage)
                 .HasColumnType("decimal(5,2)");
 
-           
             b.Entity<TestSnapshot>()
                 .HasOne(s => s.Test)
                 .WithMany()
@@ -97,9 +96,10 @@ namespace Assessment.Infrastructure.Persistence
                 .HasForeignKey(s => s.ApplicantId)
                 .OnDelete(DeleteBehavior.Restrict);
 
+            // ImagePath stores only the Supabase storage path (short string, not base64)
             b.Entity<TestSnapshot>()
-                .Property(s => s.ImageData)
-                .HasColumnType("nvarchar(max)");
+                .Property(s => s.ImagePath)
+                .HasColumnType("nvarchar(500)");
         }
     }
 }

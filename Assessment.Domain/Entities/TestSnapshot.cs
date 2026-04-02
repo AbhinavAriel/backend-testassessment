@@ -2,7 +2,6 @@
 
 namespace Assessment.Domain.Entities
 {
-   
     public class TestSnapshot
     {
         public Guid Id { get; set; }
@@ -12,8 +11,8 @@ namespace Assessment.Domain.Entities
 
         public Guid ApplicantId { get; set; }
         public HrApplicant Applicant { get; set; } = null!;
-       
-        public string ImageData { get; set; } = "";
+
+        public string ImagePath { get; set; } = "";
 
         public DateTime CapturedAt { get; set; } = DateTime.UtcNow;
 

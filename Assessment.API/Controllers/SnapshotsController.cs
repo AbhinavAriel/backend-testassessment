@@ -6,14 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace Assessment.API.Controllers
 {
-    /// <summary>
-    /// Handles proctoring snapshot upload (candidate, anonymous) and
-    /// retrieval (HR admin, authorized).
-    ///
-    /// Routes match the frontend constants exactly:
-    ///   POST  api/Snapshots          ← uploadSnapshot()
-    ///   GET   api/Snapshots/{testId} ← getSnapshots(testId)
-    /// </summary>
+   
     [ApiController]
     [Route("api/[controller]")]
     public class SnapshotsController : ControllerBase
@@ -60,6 +53,25 @@ namespace Assessment.API.Controllers
             catch (KeyNotFoundException ex)
             {
                 return NotFound(ApiResponse<object>.Fail(ex.Message));
+            }
+        }
+
+        [Authorize(Roles = "Admin")]
+        [HttpGet("image/{snapshotId:guid}")]
+        public async Task<IActionResult> GetImage([FromRoute] Guid snapshotId)
+        {
+            try
+            {
+                var (bytes, contentType) = await _snapshots.GetImageAsync(snapshotId);
+                return File(bytes, contentType);
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(ApiResponse<object>.Fail(ex.Message));
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, ApiResponse<object>.Fail(ex.Message));
             }
         }
     }
