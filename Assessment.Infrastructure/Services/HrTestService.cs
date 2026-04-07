@@ -386,7 +386,7 @@ namespace Assessment.Infrastructure.Services
                     AnsweredCount = test.AnsweredCount,
                     CorrectCount = test.CorrectCount,
                     CreatedAtUtc = test.CreatedAtUtc,
-                    SubmittedAtUtc = test.SubmittedAtUtc
+                    SubmittedAtUtc = test.SubmittedAtUtc,
                 }
             };
         }
@@ -703,6 +703,7 @@ namespace Assessment.Infrastructure.Services
                 ScorePercentage = scorePercentage,
                 IsPassed = scorePercentage >= 75 && !test.IsRejected,
                 IsRejected = test.IsRejected,
+                CancellationReason = test.CancellationReason,
 
                 CreatedAtUtc = test.CreatedAtUtc,
                 SubmittedAtUtc = test.SubmittedAtUtc,
@@ -753,20 +754,16 @@ namespace Assessment.Infrastructure.Services
             return report;
         }
 
-        public async Task RejectTestAsync(Guid testId)
+        public async Task RejectTestAsync(Guid testId, string cancellationReason)
         {
             if (testId == Guid.Empty) throw new ArgumentException("Invalid testId.");
-
             var test = await _db.HrTests.FirstOrDefaultAsync(x => x.Id == testId);
             if (test == null) throw new KeyNotFoundException("Test not found.");
-
             if (!string.Equals(test.Status, "Submitted", StringComparison.OrdinalIgnoreCase))
-                throw new InvalidOperationException("Only submitted tests can be rejected.");
-
-            if (!test.IsPassed)
-                throw new InvalidOperationException("Only passed tests can be rejected by admin.");
-
+                throw new InvalidOperationException("Only submitted tests can be cancelled.");
+            // ← Removed "only passed" restriction
             test.IsRejected = true;
+            test.CancellationReason = cancellationReason?.Trim();
             await _db.SaveChangesAsync();
         }
 

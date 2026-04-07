@@ -46,6 +46,7 @@ namespace Assessment.Application.DTOs.Hr
         public decimal ScorePercentage { get; set; }
         public bool IsPassed { get; set; }
         public bool IsRejected { get; set; }
+        public string? CancellationReason { get; set; }
 
         public DateTime CreatedAtUtc { get; set; }
         public DateTime? SubmittedAtUtc { get; set; }
@@ -104,6 +105,10 @@ namespace Assessment.Application.DTOs.Hr
 
             public DateTime CreatedAtUtc { get; set; }
             public DateTime? SubmittedAtUtc { get; set; }
+        }
+        public class RejectHrTestRequestDto
+        {
+            public string CancellationReason { get; set; } = "";
         }
     }
 }

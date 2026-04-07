@@ -31,6 +31,6 @@ namespace Assessment.Application.Interfaces
         // keep if you want it (you can still throw NotImplemented)
         Task<HrTestRowDto> UpdateAsync(Guid testId, UpdateHrTestRequestDto dto);
 
-        Task RejectTestAsync(Guid testId);
+        Task RejectTestAsync(Guid testId, string cancellationReason);
     }
 }

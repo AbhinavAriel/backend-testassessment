@@ -26,6 +26,7 @@ namespace Assessment.Domain.Entities
         public decimal ScorePercentage { get; set; }
         public bool IsPassed { get; set; }
         public bool IsRejected { get; set; }
+        public string? CancellationReason { get; set; }
         public DateTime? SubmittedAtUtc { get; set; }
 
         public ICollection<HrTestTechStack> TechStacks { get; set; } = new List<HrTestTechStack>();

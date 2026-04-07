@@ -3,6 +3,7 @@ using Assessment.Application.DTOs.Hr;
 using Assessment.Application.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using static Assessment.Application.DTOs.Hr.HrTestDetailDto;
 
 namespace Assessment.API.Controllers
 {
@@ -150,12 +151,12 @@ namespace Assessment.API.Controllers
         }
 
         [HttpPatch("tests/{testId:guid}/reject")]
-        public async Task<IActionResult> Reject([FromRoute] Guid testId)
+        public async Task<IActionResult> Reject([FromRoute] Guid testId, [FromBody] RejectHrTestRequestDto dto)
         {
             try
             {
-                await _service.RejectTestAsync(testId);
-                return Ok(ApiResponse<object>.Success(null, "Candidate result rejected."));
+                await _service.RejectTestAsync(testId, dto?.CancellationReason ?? "");
+                return Ok(ApiResponse<object>.Success(null, "Candidate result cancelled."));
             }
             catch (ArgumentException ex)
             {
