@@ -33,56 +33,6 @@ namespace Assessment.API.Controllers
             return Ok(ApiResponse<object>.Success(data));
         }
 
-        // ✅ AllowAnonymous: candidates call this during the test flow
-        //    (PolicyAgreement validates test status, useAssessmentData loads duration/applicant)
-        //    No admin token exists in the candidate's browser.
-        [AllowAnonymous]
-        [HttpGet("tests/{testId:guid}")]
-        public async Task<IActionResult> GetById([FromRoute] Guid testId)
-        {
-            try
-            {
-                var data = await _service.GetByIdAsync(testId);
-                return Ok(ApiResponse<object>.Success(data));
-            }
-            catch (ArgumentException ex)
-            {
-                return BadRequest(ApiResponse<object>.Fail(ex.Message));
-            }
-            catch (KeyNotFoundException ex)
-            {
-                return NotFound(ApiResponse<object>.Fail(ex.Message));
-            }
-            catch (InvalidOperationException ex)
-            {
-                return Conflict(ApiResponse<object>.Fail(ex.Message));
-            }
-        }
-
-        // ✅ AllowAnonymous: candidates open test link — no admin token
-        [AllowAnonymous]
-        [HttpGet("tests/by-token/{token}")]
-        public async Task<IActionResult> GetByToken([FromRoute] string token)
-        {
-            try
-            {
-                var data = await _service.GetByTokenAsync(token);
-                return Ok(ApiResponse<object>.Success(data));
-            }
-            catch (ArgumentException ex)
-            {
-                return BadRequest(ApiResponse<object>.Fail(ex.Message));
-            }
-            catch (KeyNotFoundException ex)
-            {
-                return NotFound(ApiResponse<object>.Fail(ex.Message));
-            }
-            catch (InvalidOperationException ex)
-            {
-                return Conflict(ApiResponse<object>.Fail(ex.Message));
-            }
-        }
-
         [HttpPost("tests")]
         public async Task<IActionResult> Create([FromBody] CreateHrTestRequestDto dto)
         {
@@ -93,47 +43,8 @@ namespace Assessment.API.Controllers
         [HttpPut("tests/{testId:guid}")]
         public async Task<IActionResult> Update([FromRoute] Guid testId, [FromBody] UpdateHrTestRequestDto dto)
         {
-            try
-            {
-                var data = await _service.UpdateAsync(testId, dto);
-                return Ok(ApiResponse<object>.Success(data, "Test updated"));
-            }
-            catch (ArgumentException ex)
-            {
-                return BadRequest(ApiResponse<object>.Fail(ex.Message));
-            }
-            catch (KeyNotFoundException ex)
-            {
-                return NotFound(ApiResponse<object>.Fail(ex.Message));
-            }
-            catch (InvalidOperationException ex)
-            {
-                return Conflict(ApiResponse<object>.Fail(ex.Message));
-            }
-        }
-
-        // ✅ AllowAnonymous: candidates submit their test — no admin token
-        [AllowAnonymous]
-        [HttpPost("tests/{testId:guid}/submit")]
-        public async Task<IActionResult> Submit([FromRoute] Guid testId)
-        {
-            try
-            {
-                await _service.SubmitTestAsync(testId);
-                return Ok(ApiResponse<object>.Success(null, "Submitted"));
-            }
-            catch (ArgumentException ex)
-            {
-                return BadRequest(ApiResponse<object>.Fail(ex.Message));
-            }
-            catch (KeyNotFoundException ex)
-            {
-                return NotFound(ApiResponse<object>.Fail(ex.Message));
-            }
-            catch (InvalidOperationException ex)
-            {
-                return Conflict(ApiResponse<object>.Fail(ex.Message));
-            }
+            var data = await _service.UpdateAsync(testId, dto);
+            return Ok(ApiResponse<object>.Success(data, "Test updated"));
         }
 
         [HttpGet("tests/{testId:guid}/report")]
@@ -153,23 +64,50 @@ namespace Assessment.API.Controllers
         [HttpPatch("tests/{testId:guid}/reject")]
         public async Task<IActionResult> Reject([FromRoute] Guid testId, [FromBody] RejectHrTestRequestDto dto)
         {
+            await _service.RejectTestAsync(testId, dto?.CancellationReason ?? "");
+            return Ok(ApiResponse<object>.Success(null, "Candidate result cancelled."));
+        }
+
+        [AllowAnonymous]
+        [HttpGet("tests/{testId:guid}")]
+        public async Task<IActionResult> GetById([FromRoute] Guid testId)
+        {
             try
             {
-                await _service.RejectTestAsync(testId, dto?.CancellationReason ?? "");
-                return Ok(ApiResponse<object>.Success(null, "Candidate result cancelled."));
+                var data = await _service.GetByIdAsync(testId);
+                return Ok(ApiResponse<object>.Success(data));
             }
-            catch (ArgumentException ex)
+            catch (ArgumentException ex) { return BadRequest(ApiResponse<object>.Fail(ex.Message)); }
+            catch (KeyNotFoundException ex) { return NotFound(ApiResponse<object>.Fail(ex.Message)); }
+            catch (InvalidOperationException ex) { return Conflict(ApiResponse<object>.Fail(ex.Message)); }
+        }
+
+        [AllowAnonymous]
+        [HttpGet("tests/by-token/{token}")]
+        public async Task<IActionResult> GetByToken([FromRoute] string token)
+        {
+            try
             {
-                return BadRequest(ApiResponse<object>.Fail(ex.Message));
+                var data = await _service.GetByTokenAsync(token);
+                return Ok(ApiResponse<object>.Success(data));
             }
-            catch (KeyNotFoundException ex)
+            catch (ArgumentException ex) { return BadRequest(ApiResponse<object>.Fail(ex.Message)); }
+            catch (KeyNotFoundException ex) { return NotFound(ApiResponse<object>.Fail(ex.Message)); }
+            catch (InvalidOperationException ex) { return Conflict(ApiResponse<object>.Fail(ex.Message)); }
+        }
+
+        [AllowAnonymous]
+        [HttpPost("tests/{testId:guid}/submit")]
+        public async Task<IActionResult> Submit([FromRoute] Guid testId)
+        {
+            try
             {
-                return NotFound(ApiResponse<object>.Fail(ex.Message));
+                await _service.SubmitTestAsync(testId);
+                return Ok(ApiResponse<object>.Success(null, "Submitted"));
             }
-            catch (InvalidOperationException ex)
-            {
-                return Conflict(ApiResponse<object>.Fail(ex.Message));
-            }
+            catch (ArgumentException ex) { return BadRequest(ApiResponse<object>.Fail(ex.Message)); }
+            catch (KeyNotFoundException ex) { return NotFound(ApiResponse<object>.Fail(ex.Message)); }
+            catch (InvalidOperationException ex) { return Conflict(ApiResponse<object>.Fail(ex.Message)); }
         }
     }
 }

@@ -1,38 +1,44 @@
-﻿using Assessment.Application.Interfaces.Repositories;
+﻿using Assessment.Application.Constants;
+using Assessment.Application.Interfaces.Repositories;
 
-public class HrTestScoringService
+namespace Assessment.Infrastructure.Services
 {
-    private readonly IHrTestRepository _hrRepo;
-
-    public HrTestScoringService(IHrTestRepository hrRepo)
+   
+    public class HrTestScoringService
     {
-        _hrRepo = hrRepo;
-    }
+        private readonly IHrTestRepository _hrRepo;
 
-    public async Task SubmitTestAsync(Guid testId)
-    {
-        if (testId == Guid.Empty)
-            throw new ArgumentException("Invalid TestId.");
+        public HrTestScoringService(IHrTestRepository hrRepo)
+        {
+            _hrRepo = hrRepo;
+        }
 
-        var test = await _hrRepo.GetTestByIdForUpdateAsync(testId);
-        if (test == null)
-            throw new KeyNotFoundException("Test not found.");
+        public async Task SubmitTestAsync(Guid testId)
+        {
+            if (testId == Guid.Empty)
+                throw new ArgumentException("Invalid TestId.");
 
-        if (string.Equals(test.Status, "Submitted", StringComparison.OrdinalIgnoreCase))
-            return;
+            var test = await _hrRepo.GetTestByIdForUpdateAsync(testId);
+            if (test == null)
+                throw new KeyNotFoundException("Test not found.");
 
-        var (answered, correct) = await _hrRepo.GetScoreCountsAsync(testId);
+            if (string.Equals(test.Status, TestStatus.Submitted, StringComparison.OrdinalIgnoreCase))
+                return;
 
-        var scorePercentage = test.TotalQuestions > 0
-            ? Math.Round((double)correct / test.TotalQuestions * 100, 2)
-            : 0;
+            var (answered, correct) = await _hrRepo.GetScoreCountsAsync(testId);
 
+            var scorePercentage = test.TotalQuestions > 0
+                ? (decimal)Math.Round((double)correct / test.TotalQuestions * 100, 2)
+                : 0m;
 
-        test.AnsweredCount = answered;
-        test.CorrectCount = correct;
-        test.Status = "Submitted";
-        test.SubmittedAtUtc = DateTime.UtcNow;
+            test.AnsweredCount = answered;
+            test.CorrectCount = correct;
+            test.ScorePercentage = scorePercentage;
+            test.IsPassed = scorePercentage >= ScoringConstants.PassThresholdPercent;
+            test.Status = TestStatus.Submitted;
+            test.SubmittedAtUtc = DateTime.UtcNow;
 
-        await _hrRepo.SaveChangesAsync();
+            await _hrRepo.SaveChangesAsync();
+        }
     }
 }

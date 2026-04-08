@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace Assessment.API.Controllers
 {
-   
+
     [ApiController]
     [Route("api/[controller]")]
     public class SnapshotsController : ControllerBase

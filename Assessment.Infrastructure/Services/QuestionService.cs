@@ -1,5 +1,5 @@
-﻿using System;
-using Assessment.Application.DTOs.Questions;
+﻿using Assessment.Application.DTOs.Questions;
+using Assessment.Application.Helpers;
 using Assessment.Application.Interfaces;
 using Assessment.Application.Interfaces.Repositories;
 using Assessment.Domain.Entities;
@@ -27,7 +27,7 @@ namespace Assessment.Infrastructure.Services
         public async Task<List<QuestionResponseDto>> GetQuestionsAsync()
         {
             var list = await _questions.GetAllWithOptionsAsync();
-            return list.Select(Map).ToList();
+            return list.Select(MapToDto).ToList();
         }
 
         public async Task<QuestionResponseDto> CreateAsync(CreateQuestionRequestDto dto)
@@ -45,9 +45,7 @@ namespace Assessment.Infrastructure.Services
             if (string.IsNullOrWhiteSpace(dto.Level))
                 throw new ArgumentException("Level is required.");
 
-            var techExists = await _db.TechStacks.AsNoTracking()
-                .AnyAsync(x => x.Id == dto.TechStackId);
-
+            var techExists = await _db.TechStacks.AsNoTracking().AnyAsync(x => x.Id == dto.TechStackId);
             if (!techExists)
                 throw new KeyNotFoundException("Selected tech stack was not found.");
 
@@ -69,7 +67,7 @@ namespace Assessment.Infrastructure.Services
             if (normalizedOptions.Count(x => x.IsCorrect) != 1)
                 throw new ArgumentException("Exactly one correct option must be selected.");
 
-            var level = ParseLevel(dto.Level);
+            var level = LevelParser.Parse(dto.Level);   // ← shared helper, no duplication
 
             var alreadyExists = await _db.Questions.AsNoTracking()
                 .AnyAsync(q =>
@@ -78,7 +76,8 @@ namespace Assessment.Infrastructure.Services
                     q.Level == level);
 
             if (alreadyExists)
-                throw new InvalidOperationException("This question already exists for the selected tech stack and level.");
+                throw new InvalidOperationException(
+                    "This question already exists for the selected tech stack and level.");
 
             var maxOrder = await _db.Questions.AnyAsync()
                 ? await _db.Questions.MaxAsync(q => q.Order)
@@ -103,7 +102,7 @@ namespace Assessment.Infrastructure.Services
             _db.Questions.Add(question);
             await _db.SaveChangesAsync();
 
-            return Map(question);
+            return MapToDto(question);
         }
 
         public async Task<List<QuestionResponseDto>> GetQuestionsForTestAsync(Guid testId)
@@ -119,7 +118,6 @@ namespace Assessment.Infrastructure.Services
                 throw new InvalidOperationException("This test link has expired.");
 
             var assignedQuestions = await _hr.GetAssignedQuestionsForTestAsync(testId);
-
             if (assignedQuestions == null || assignedQuestions.Count == 0)
                 throw new ArgumentException("No questions found for this test.");
 
@@ -128,7 +126,7 @@ namespace Assessment.Infrastructure.Services
                 .Select(x => new QuestionResponseDto
                 {
                     Id = x.Question.Id,
-                    Order = x.Order, 
+                    Order = x.Order,
                     Text = x.Question.Text,
                     Level = x.Question.Level.ToString(),
                     Options = x.Question.Options.Select(o => new AnswerOptionResponseDto
@@ -140,7 +138,7 @@ namespace Assessment.Infrastructure.Services
                 .ToList();
         }
 
-        private static QuestionResponseDto Map(Question q) =>
+        private static QuestionResponseDto MapToDto(Question q) =>
             new QuestionResponseDto
             {
                 Id = q.Id,
@@ -153,16 +151,5 @@ namespace Assessment.Infrastructure.Services
                     Text = o.Text
                 }).ToList()
             };
-
-        private static QuestionLevel ParseLevel(string? level)
-        {
-            return (level ?? "").Trim().ToLowerInvariant() switch
-            {
-                "beginner" => QuestionLevel.Beginner,
-                "intermediate" => QuestionLevel.Intermediate,
-                "professional" => QuestionLevel.Professional,
-                _ => throw new ArgumentException("Invalid level. Use Beginner / Intermediate / Professional.")
-            };
-        }
     }
 }

@@ -22,47 +22,23 @@ namespace Assessment.API.Controllers
         {
             try
             {
-                List<QuestionResponseDto> list = testId.HasValue
+                var list = testId.HasValue
                     ? await _questions.GetQuestionsForTestAsync(testId.Value)
                     : await _questions.GetQuestionsAsync();
 
                 return Ok(ApiResponse<List<QuestionResponseDto>>.Success(list));
             }
-            catch (ArgumentException ex)
-            {
-                return BadRequest(ApiResponse<object>.Fail(ex.Message));
-            }
-            catch (KeyNotFoundException ex)
-            {
-                return NotFound(ApiResponse<object>.Fail(ex.Message));
-            }
-            catch (InvalidOperationException ex)
-            {
-                return Conflict(ApiResponse<object>.Fail(ex.Message));
-            }
+            catch (ArgumentException ex) { return BadRequest(ApiResponse<object>.Fail(ex.Message)); }
+            catch (KeyNotFoundException ex) { return NotFound(ApiResponse<object>.Fail(ex.Message)); }
+            catch (InvalidOperationException ex) { return Conflict(ApiResponse<object>.Fail(ex.Message)); }
         }
 
         [Authorize(Roles = "Admin")]
         [HttpPost]
         public async Task<IActionResult> Create([FromBody] CreateQuestionRequestDto dto)
         {
-            try
-            {
-                var data = await _questions.CreateAsync(dto);
-                return Ok(ApiResponse<QuestionResponseDto>.Success(data, "Question created successfully."));
-            }
-            catch (ArgumentException ex)
-            {
-                return BadRequest(ApiResponse<object>.Fail(ex.Message));
-            }
-            catch (KeyNotFoundException ex)
-            {
-                return NotFound(ApiResponse<object>.Fail(ex.Message));
-            }
-            catch (InvalidOperationException ex)
-            {
-                return Conflict(ApiResponse<object>.Fail(ex.Message));
-            }
+            var data = await _questions.CreateAsync(dto);
+            return Ok(ApiResponse<QuestionResponseDto>.Success(data, "Question created successfully."));
         }
     }
 }

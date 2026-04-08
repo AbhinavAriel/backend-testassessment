@@ -52,6 +52,7 @@ builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddScoped<JwtTokenGenerator>();
 builder.Services.AddScoped<IHrTestRepository, HrTestRepository>();
 builder.Services.AddScoped<IHrTestService, HrTestService>();
+builder.Services.AddScoped<HrTestScoringService>();
 
 builder.Services.AddIdentityCore<ApplicationUser>(options =>
 {
