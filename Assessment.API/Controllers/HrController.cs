@@ -1,9 +1,13 @@
 ﻿using Assessment.API.Common;
 using Assessment.Application.DTOs.Hr;
+// DTO namespaces (UPDATED)
+using Assessment.Application.DTOs.Hr.Meta;
+using Assessment.Application.DTOs.Hr.Requests;
+using Assessment.Application.DTOs.Hr.Shared;
+using Assessment.Application.DTOs.Hr.Test;
 using Assessment.Application.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using static Assessment.Application.DTOs.Hr.HrTestDetailDto;
 
 namespace Assessment.API.Controllers
 {

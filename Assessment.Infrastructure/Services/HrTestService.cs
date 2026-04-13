@@ -1,5 +1,9 @@
 ﻿using Assessment.Application.Constants;
 using Assessment.Application.DTOs.Hr;
+using Assessment.Application.DTOs.Hr.Meta;
+using Assessment.Application.DTOs.Hr.Test;
+using Assessment.Application.DTOs.Hr.Requests;
+using Assessment.Application.DTOs.Hr.Applicant;
 using Assessment.Application.DTOs.Questions;
 using Assessment.Application.Helpers;
 using Assessment.Application.Interfaces;
@@ -68,22 +72,35 @@ namespace Assessment.Infrastructure.Services
             if (dto == null) throw new ArgumentException("Invalid payload.");
             if (string.IsNullOrWhiteSpace(dto.Email)) throw new ArgumentException("Email is required.");
 
-            var techIds = dto.TechStackIds?.Where(x => x != Guid.Empty).Distinct().ToList() ?? new List<Guid>();
-            if (techIds.Count == 0) throw new ArgumentException("Select at least one tech stack.");
+            var techEntries = (dto.TechStacks ?? new())
+                .Where(x => x.TechStackId != Guid.Empty)
+                .GroupBy(x => x.TechStackId)
+                .Select(g => g.First())
+                .ToList();
+
+            if (techEntries.Count == 0) throw new ArgumentException("Select at least one tech stack.");
 
             if (dto.TotalQuestions <= 0) throw new ArgumentException("TotalQuestions must be greater than 0.");
             if (dto.DurationMinutes <= 0) throw new ArgumentException("DurationMinutes must be greater than 0.");
 
-            var levelEnum = LevelParser.Parse(dto.Level);
+            var techIds = techEntries.Select(x => x.TechStackId).ToList();
 
             var validCount = await _repo.CountTechStacksByIdsAsync(techIds);
             if (validCount != techIds.Count)
                 throw new ArgumentException("One or more TechStackIds are invalid.");
 
-            var available = await _questionRepo.CountAvailableAsync(techIds, levelEnum);
-            if (available < dto.TotalQuestions)
-                throw new ArgumentException(
-                    $"Not enough questions for selected TechStacks at {levelEnum}. Available: {available}.");
+            // Validate per-tech question availability
+            foreach (var entry in techEntries)
+            {
+                var lvl = LevelParser.Parse(entry.Level);
+                var perTechCount = dto.TotalQuestions / techEntries.Count
+                                   + (techEntries.IndexOf(entry) < dto.TotalQuestions % techEntries.Count ? 1 : 0);
+                var avail = await _db.Questions.AsNoTracking()
+                    .CountAsync(q => q.IsActive && q.TechStackId == entry.TechStackId && q.Level == lvl);
+                if (avail < Math.Max(1, perTechCount))
+                    throw new ArgumentException(
+                        $"Not enough questions for one of the selected tech stacks at the chosen level. Available: {avail}.");
+            }
 
             var normalizedEmail = dto.Email.Trim().ToLowerInvariant();
             var applicant = await _repo.GetApplicantByEmailAsync(normalizedEmail);
@@ -126,7 +143,7 @@ namespace Assessment.Infrastructure.Services
                 ApplicantId = applicant.Id,
                 TotalQuestions = dto.TotalQuestions,
                 DurationMinutes = dto.DurationMinutes,
-                Level = levelEnum.ToString(),
+                Level = string.Join(", ", techEntries.Select(e => $"{e.TechStackId}:{e.Level}")), // kept for any legacy readers
                 Status = TestStatus.Created,
                 CreatedAtUtc = DateTime.UtcNow,
                 AnsweredCount = 0,
@@ -138,17 +155,18 @@ namespace Assessment.Infrastructure.Services
 
             await _repo.AddTestAsync(test);
 
-            var links = techIds.Select(tid => new HrTestTechStack
+            var links = techEntries.Select(entry => new HrTestTechStack
             {
                 Id = Guid.NewGuid(),
                 TestId = test.Id,
-                TechStackId = tid
+                TechStackId = entry.TechStackId,
+                Level = LevelParser.Parse(entry.Level)
             }).ToList();
 
             await _repo.AddTechStacksAsync(links);
             await _repo.SaveChangesAsync();
 
-            var picked = await PickQuestionsBalancedAsync(techIds, levelEnum, dto.TotalQuestions);
+            var picked = await PickQuestionsPerTechAsync(techEntries, dto.TotalQuestions);
             var testQuestions = picked.Select((q, idx) => new HrTestQuestion
             {
                 TestId = test.Id,
@@ -170,13 +188,18 @@ namespace Assessment.Infrastructure.Services
                 PhoneNumber = applicant.PhoneNumber ?? "",
                 TotalQuestions = test.TotalQuestions,
                 DurationMinutes = test.DurationMinutes,
-                Level = test.Level,
                 Status = test.Status,
                 CreatedAtUtc = test.CreatedAtUtc,
                 SubmittedAtUtc = test.SubmittedAtUtc,
                 AnsweredCount = 0,
                 CorrectCount = 0,
                 TechStacks = techNames,
+                TechStackLevels = links.Select(l => new HrTechStackWithLevelDto
+                {
+                    Id = l.TechStackId,
+                    Name = techNames.ElementAtOrDefault(links.IndexOf(l)) ?? "",
+                    Level = l.Level.ToString()
+                }).ToList(),
                 TestToken = test.TestToken ?? "",
                 ExpiresAtUtc = test.ExpiresAtUtc
             };
@@ -210,7 +233,6 @@ namespace Assessment.Infrastructure.Services
                 {
                     TotalQuestions = test.TotalQuestions,
                     DurationMinutes = test.DurationMinutes,
-                    Level = test.Level,
                     Status = test.Status,
                     AnsweredCount = test.AnsweredCount,
                     CorrectCount = test.CorrectCount,
@@ -259,7 +281,6 @@ namespace Assessment.Infrastructure.Services
                 {
                     TotalQuestions = test.TotalQuestions,
                     DurationMinutes = test.DurationMinutes,
-                    Level = test.Level,
                     Status = test.Status,
                     AnsweredCount = test.AnsweredCount,
                     CorrectCount = test.CorrectCount,
@@ -317,35 +338,43 @@ namespace Assessment.Infrastructure.Services
 
             if (dto.TotalQuestions > 0) test.TotalQuestions = dto.TotalQuestions;
             if (dto.DurationMinutes > 0) test.DurationMinutes = dto.DurationMinutes;
-            if (!string.IsNullOrWhiteSpace(dto.Level)) test.Level = dto.Level;
 
-            var techIds = dto.TechStackIds?.Where(x => x != Guid.Empty).Distinct().ToList() ?? new List<Guid>();
+            var techEntries = (dto.TechStacks ?? new())
+                .Where(x => x.TechStackId != Guid.Empty)
+                .GroupBy(x => x.TechStackId)
+                .Select(g => g.First())
+                .ToList();
 
-            if (techIds.Count > 0)
+            if (techEntries.Count > 0)
             {
-                var validCount = await _repo.CountTechStacksByIdsAsync(techIds);
-                if (validCount != techIds.Count)
+                var techIds2 = techEntries.Select(x => x.TechStackId).ToList();
+                var validCount = await _repo.CountTechStacksByIdsAsync(techIds2);
+                if (validCount != techIds2.Count)
                     throw new ArgumentException("One or more TechStackIds are invalid.");
 
                 await _repo.RemoveTechStacksByTestIdAsync(testId);
                 await _repo.SaveChangesAsync();
 
-                var newLinks = techIds.Select(tid => new HrTestTechStack
+                var newLinks = techEntries.Select(entry => new HrTestTechStack
                 {
                     Id = Guid.NewGuid(),
                     TestId = testId,
-                    TechStackId = tid
+                    TechStackId = entry.TechStackId,
+                    Level = LevelParser.Parse(entry.Level)
                 }).ToList();
                 await _repo.AddTechStacksAsync(newLinks);
             }
 
             await _repo.SaveChangesAsync();
 
-            var finalTechIds = techIds.Count > 0
-                ? techIds
-                : test.TechStacks.Select(x => x.TechStackId).ToList();
+            // Reload the test so TechStacks nav is current
+            var reloadedTest = await _db.HrTests.AsNoTracking()
+                .Include(t => t.TechStacks).ThenInclude(ts => ts.TechStack)
+                .FirstOrDefaultAsync(t => t.Id == testId);
 
-            var techNames = await _repo.GetTechStackNamesByIdsAsync(finalTechIds);
+            var finalTechLinks = reloadedTest?.TechStacks?.ToList() ?? new();
+            var techNames = await _repo.GetTechStackNamesByIdsAsync(
+                finalTechLinks.Select(x => x.TechStackId).ToList());
 
             return new HrTestRowDto
             {
@@ -356,7 +385,6 @@ namespace Assessment.Infrastructure.Services
                 PhoneNumber = applicant.PhoneNumber ?? "",
                 TotalQuestions = test.TotalQuestions,
                 DurationMinutes = test.DurationMinutes,
-                Level = test.Level,
                 Status = test.Status,
                 CreatedAtUtc = test.CreatedAtUtc,
                 SubmittedAtUtc = test.SubmittedAtUtc,
@@ -366,6 +394,12 @@ namespace Assessment.Infrastructure.Services
                 IsPassed = test.IsPassed && !test.IsRejected,
                 IsRejected = test.IsRejected,
                 TechStacks = techNames,
+                TechStackLevels = finalTechLinks.Zip(techNames, (link, name) => new HrTechStackWithLevelDto
+                {
+                    Id = link.TechStackId,
+                    Name = name,
+                    Level = link.Level.ToString()
+                }).ToList(),
                 TestToken = test.TestToken ?? "",
                 ExpiresAtUtc = test.ExpiresAtUtc
             };
@@ -585,27 +619,28 @@ namespace Assessment.Infrastructure.Services
 
         // ──────────────────────────── Private helpers ────────────────────────────
 
-        private async Task<List<Question>> PickQuestionsBalancedAsync(
-            List<Guid> techIds, QuestionLevel level, int totalQuestions)
+        private async Task<List<Question>> PickQuestionsPerTechAsync(
+            List<TechStackLevelDto> techEntries, int totalQuestions)
         {
-            if (techIds == null || techIds.Count == 0)
+            if (techEntries == null || techEntries.Count == 0)
                 throw new ArgumentException("No tech stacks selected.");
 
-            var perTech = totalQuestions / techIds.Count;
-            var remainder = totalQuestions % techIds.Count;
+            var perTech = totalQuestions / techEntries.Count;
+            var remainder = totalQuestions % techEntries.Count;
 
             var picked = new List<Question>();
             var pickedIds = new HashSet<Guid>();
 
-            foreach (var techId in techIds)
+            for (int i = 0; i < techEntries.Count; i++)
             {
-                var take = perTech + (remainder > 0 ? 1 : 0);
-                if (remainder > 0) remainder--;
+                var entry = techEntries[i];
+                var level = LevelParser.Parse(entry.Level);
+                var take = perTech + (i < remainder ? 1 : 0);
                 if (take <= 0) continue;
 
                 var chunk = await _db.Questions.AsNoTracking()
                     .Include(q => q.Options)
-                    .Where(q => q.IsActive && q.Level == level && q.TechStackId == techId)
+                    .Where(q => q.IsActive && q.Level == level && q.TechStackId == entry.TechStackId)
                     .OrderBy(q => Guid.NewGuid())
                     .Take(take)
                     .ToListAsync();
@@ -614,22 +649,28 @@ namespace Assessment.Infrastructure.Services
                     if (pickedIds.Add(q.Id)) picked.Add(q);
             }
 
+            // Fill any shortfall from any of the selected techs at their own level
             var remaining = totalQuestions - picked.Count;
             if (remaining > 0)
             {
-                var fill = await _db.Questions.AsNoTracking()
-                    .Include(q => q.Options)
-                    .Where(q =>
-                        q.IsActive &&
-                        q.Level == level &&
-                        techIds.Contains(q.TechStackId) &&
-                        !pickedIds.Contains(q.Id))
-                    .OrderBy(q => Guid.NewGuid())
-                    .Take(remaining)
-                    .ToListAsync();
+                foreach (var entry in techEntries)
+                {
+                    if (remaining <= 0) break;
+                    var level = LevelParser.Parse(entry.Level);
+                    var fill = await _db.Questions.AsNoTracking()
+                        .Include(q => q.Options)
+                        .Where(q => q.IsActive && q.Level == level &&
+                                    q.TechStackId == entry.TechStackId &&
+                                    !pickedIds.Contains(q.Id))
+                        .OrderBy(q => Guid.NewGuid())
+                        .Take(remaining)
+                        .ToListAsync();
 
-                foreach (var q in fill)
-                    if (pickedIds.Add(q.Id)) picked.Add(q);
+                    foreach (var q in fill)
+                    {
+                        if (pickedIds.Add(q.Id)) { picked.Add(q); remaining--; }
+                    }
+                }
             }
 
             if (picked.Count < totalQuestions)
@@ -677,7 +718,6 @@ namespace Assessment.Infrastructure.Services
                     PhoneNumber = t.Applicant?.PhoneNumber ?? "",
                     TotalQuestions = t.TotalQuestions,
                     DurationMinutes = t.DurationMinutes,
-                    Level = t.Level,
                     Status = t.Status,
                     CreatedAtUtc = t.CreatedAtUtc,
                     SubmittedAtUtc = t.SubmittedAtUtc,
@@ -689,6 +729,12 @@ namespace Assessment.Infrastructure.Services
                     IsRejected = t.IsRejected,
                     CancellationReason = t.CancellationReason,
                     TechStacks = t.TechStacks.Select(x => x.TechStack.Name).ToList(),
+                    TechStackLevels = t.TechStacks.Select(x => new HrTechStackWithLevelDto
+                    {
+                        Id = x.TechStackId,
+                        Name = x.TechStack?.Name ?? "",
+                        Level = x.Level.ToString()
+                    }).ToList(),
                     TestToken = t.TestToken ?? "",
                     ExpiresAtUtc = t.ExpiresAtUtc
                 };

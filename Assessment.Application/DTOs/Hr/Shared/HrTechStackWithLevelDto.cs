@@ -1,20 +1,12 @@
 ﻿using Assessment.Application.Constants;
 
-namespace Assessment.Application.DTOs.Hr
+
+namespace Assessment.Application.DTOs.Hr.Shared
 {
-
-
-    public class TechStackLevelDto
-    {
-        public Guid TechStackId { get; set; }
-        public string Level { get; set; } = QuestionLevelLabels.Beginner;
-    }
-
     public class HrTechStackWithLevelDto
     {
         public Guid Id { get; set; }
         public string Name { get; set; } = "";
         public string Level { get; set; } = QuestionLevelLabels.Beginner;
     }
-    
 }

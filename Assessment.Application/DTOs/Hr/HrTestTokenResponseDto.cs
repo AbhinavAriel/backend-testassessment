@@ -1,4 +1,7 @@
-﻿namespace Assessment.Application.DTOs.Hr
+﻿using Assessment.Application.DTOs.Hr.Applicant;
+
+namespace Assessment.Application.DTOs.Hr
+
 {
     public class HrTestTokenResponseDto
     {

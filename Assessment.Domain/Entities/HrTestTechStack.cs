@@ -8,6 +8,8 @@
         public HrTest Test { get; set; } = null!;
 
         public Guid TechStackId { get; set; }
-        public TechStack TechStack { get; set; } = null!;   
+        public TechStack TechStack { get; set; } = null!;
+
+        public QuestionLevel Level { get; set; } = QuestionLevel.Beginner;
     }
 }

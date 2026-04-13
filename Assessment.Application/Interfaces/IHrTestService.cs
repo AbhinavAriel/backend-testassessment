@@ -1,4 +1,8 @@
 ﻿using Assessment.Application.DTOs.Hr;
+using Assessment.Application.DTOs.Hr.Meta;
+using Assessment.Application.DTOs.Hr.Test;
+using Assessment.Application.DTOs.Hr.Requests;
+using Assessment.Application.DTOs.Hr.Applicant;
 using Assessment.Application.DTOs.Questions;
 
 namespace Assessment.Application.Interfaces
