@@ -1,23 +1,18 @@
 ﻿using System.Net;
 using System.Text.Json;
-using Assessment.API.Common;
 
-namespace Assessment.API.Middleware
+namespace Assessment.API.Common
 {
     public class ExceptionMiddleware
     {
         private readonly RequestDelegate _next;
-        private readonly ILogger<ExceptionMiddleware> _logger;
-        private readonly IHostEnvironment _env;
 
-        public ExceptionMiddleware(RequestDelegate next, ILogger<ExceptionMiddleware> logger, IHostEnvironment env)
+        public ExceptionMiddleware(RequestDelegate next)
         {
             _next = next;
-            _logger = logger;
-            _env = env;
         }
 
-        public async Task Invoke(HttpContext context)
+        public async Task InvokeAsync(HttpContext context)
         {
             try
             {
@@ -25,41 +20,30 @@ namespace Assessment.API.Middleware
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Unhandled exception. Path: {Path}", context.Request.Path);
-
-                var (statusCode, code) = MapException(ex);
-
-                context.Response.ContentType = "application/json";
-                context.Response.StatusCode = statusCode;
-
-                var message = GetSafeMessage(ex, statusCode);
-
-                var details = _env.IsDevelopment() ? ex.ToString() : null;
-
-                var payload = ApiResponse<object>.Fail(message);
-
-                await context.Response.WriteAsync(JsonSerializer.Serialize(payload));
+                await HandleExceptionAsync(context, ex);
             }
         }
 
-        private static (int StatusCode, string Code) MapException(Exception ex)
+        private static Task HandleExceptionAsync(HttpContext context, Exception ex)
         {
-            return ex switch
+            var response = new ApiResponse<string>
             {
-                ArgumentException => ((int)HttpStatusCode.BadRequest, "BAD_REQUEST"),
-                KeyNotFoundException => ((int)HttpStatusCode.NotFound, "NOT_FOUND"),
-                InvalidOperationException => ((int)HttpStatusCode.Conflict, "CONFLICT"),
-                UnauthorizedAccessException => ((int)HttpStatusCode.Unauthorized, "UNAUTHORIZED"),
-                _ => ((int)HttpStatusCode.InternalServerError, "SERVER_ERROR")
+                IsSuccess = false,
+                Message = ex.Message
             };
-        }
 
-        private static string GetSafeMessage(Exception ex, int statusCode)
-        {
-            if (statusCode == (int)HttpStatusCode.InternalServerError)
-                return "An unexpected error occurred. Please try again.";
+            context.Response.ContentType = "application/json";
 
-            return ex.Message;
+            context.Response.StatusCode = ex switch
+            {
+                ArgumentException => (int)HttpStatusCode.BadRequest,
+                KeyNotFoundException => (int)HttpStatusCode.NotFound,
+                UnauthorizedAccessException => (int)HttpStatusCode.Unauthorized,
+                _ => (int)HttpStatusCode.InternalServerError
+            };
+
+            var json = JsonSerializer.Serialize(response);
+            return context.Response.WriteAsync(json);
         }
     }
 }

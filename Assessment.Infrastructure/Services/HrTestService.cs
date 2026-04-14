@@ -443,6 +443,30 @@ namespace Assessment.Infrastructure.Services
             }).ToList();
         }
 
+        public async Task<BeginTestResultDto> BeginTestAsync(Guid testId)
+        {
+            if (testId == Guid.Empty) throw new ArgumentException("Invalid testId.");
+
+            var test = await _db.HrTests.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == testId);
+
+            if (test == null)
+                throw new KeyNotFoundException("Test not found.");
+
+            if (test.ExpiresAtUtc <= DateTime.UtcNow)
+                throw new InvalidOperationException("This test link has expired.");
+
+            if (string.Equals(test.Status, TestStatus.Submitted, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("This test has already been submitted.");
+
+            return new BeginTestResultDto
+            {
+                TestId = test.Id,
+                ApplicantId = test.ApplicantId,
+                DurationMinutes = test.DurationMinutes,
+            };
+        }
+
         // ──────────────────────────── Submit ────────────────────────────
 
         public async Task SubmitTestAsync(Guid testId)

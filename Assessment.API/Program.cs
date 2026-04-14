@@ -1,4 +1,4 @@
-using Assessment.API.Middleware;
+using Assessment.API.Common;
 using Assessment.Application.Interfaces;
 using Assessment.Application.Interfaces.Repositories;
 using Assessment.Infrastructure.Identity;
@@ -11,6 +11,8 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
 using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -50,6 +52,7 @@ builder.Services.AddDataProtection();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddScoped<JwtTokenGenerator>();
+builder.Services.AddScoped<CandidateTokenGenerator>();
 builder.Services.AddScoped<IHrTestRepository, HrTestRepository>();
 builder.Services.AddScoped<IHrTestService, HrTestService>();
 builder.Services.AddScoped<HrTestScoringService>();
@@ -72,6 +75,7 @@ builder.Services.AddIdentityCore<ApplicationUser>(options =>
 var jwtKey = builder.Configuration["Jwt:Key"] ?? throw new InvalidOperationException("Jwt:Key is missing.");
 var jwtIssuer = builder.Configuration["Jwt:Issuer"] ?? throw new InvalidOperationException("Jwt:Issuer is missing.");
 var jwtAudience = builder.Configuration["Jwt:Audience"] ?? throw new InvalidOperationException("Jwt:Audience is missing.");
+JwtSecurityTokenHandler.DefaultInboundClaimTypeMap.Clear();
 
 builder.Services
     .AddAuthentication(options =>
@@ -90,7 +94,8 @@ builder.Services
             ValidIssuer = jwtIssuer,
             ValidAudience = jwtAudience,
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey)),
-            ClockSkew = TimeSpan.FromMinutes(1)
+            ClockSkew = TimeSpan.FromMinutes(1),
+            RoleClaimType = ClaimTypes.Role
         };
     });
 

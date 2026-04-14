@@ -6,73 +6,42 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace Assessment.API.Controllers
 {
-
     [ApiController]
     [Route("api/[controller]")]
     public class SnapshotsController : ControllerBase
     {
-        private readonly ISnapshotService _snapshots;
+        private readonly ISnapshotService _service;
 
-        public SnapshotsController(ISnapshotService snapshots)
+        public SnapshotsController(ISnapshotService service)
         {
-            _snapshots = snapshots;
+            _service = service;
         }
 
         [AllowAnonymous]
         [HttpPost]
-        public async Task<IActionResult> Upload([FromBody] UploadSnapshotRequestDto dto)
+        public async Task<ActionResult<ApiResponse<SnapshotResponseDto>>> Upload(UploadSnapshotRequestDto dto)
         {
-            try
-            {
-                var result = await _snapshots.UploadAsync(dto);
-                return Ok(ApiResponse<object>.Success(result, "Snapshot saved"));
-            }
-            catch (ArgumentException ex)
-            {
-                return BadRequest(ApiResponse<object>.Fail(ex.Message));
-            }
-            catch (KeyNotFoundException ex)
-            {
-                return NotFound(ApiResponse<object>.Fail(ex.Message));
-            }
+            var result = await _service.UploadAsync(dto);
+
+            return Ok(ApiResponse<SnapshotResponseDto>.Success(result, "Snapshot uploaded"));
         }
 
         [Authorize(Roles = "Admin")]
         [HttpGet("{testId:guid}")]
-        public async Task<IActionResult> GetByTestId([FromRoute] Guid testId)
+        public async Task<ActionResult<ApiResponse<IEnumerable<SnapshotResponseDto>>>> GetByTestId(Guid testId)
         {
-            try
-            {
-                var result = await _snapshots.GetByTestIdAsync(testId);
-                return Ok(ApiResponse<object>.Success(result));
-            }
-            catch (ArgumentException ex)
-            {
-                return BadRequest(ApiResponse<object>.Fail(ex.Message));
-            }
-            catch (KeyNotFoundException ex)
-            {
-                return NotFound(ApiResponse<object>.Fail(ex.Message));
-            }
+            var result = await _service.GetByTestIdAsync(testId);
+
+            return Ok(ApiResponse<IEnumerable<SnapshotResponseDto>>.Success(result));
         }
 
         [Authorize(Roles = "Admin")]
         [HttpGet("image/{snapshotId:guid}")]
-        public async Task<IActionResult> GetImage([FromRoute] Guid snapshotId)
+        public async Task<IActionResult> GetImage(Guid snapshotId)
         {
-            try
-            {
-                var (bytes, contentType) = await _snapshots.GetImageAsync(snapshotId);
-                return File(bytes, contentType);
-            }
-            catch (KeyNotFoundException ex)
-            {
-                return NotFound(ApiResponse<object>.Fail(ex.Message));
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, ApiResponse<object>.Fail(ex.Message));
-            }
+            var (bytes, contentType) = await _service.GetImageAsync(snapshotId);
+
+            return File(bytes, contentType);
         }
     }
 }

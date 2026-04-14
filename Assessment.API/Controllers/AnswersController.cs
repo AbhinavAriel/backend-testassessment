@@ -1,12 +1,14 @@
 ﻿using Assessment.API.Common;
 using Assessment.Application.DTOs.Answers;
 using Assessment.Application.Interfaces;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Assessment.API.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
+    [Authorize(Roles = "Candidate")]
     public class AnswersController : ControllerBase
     {
         private readonly IAnswerService _answers;
@@ -21,6 +23,11 @@ namespace Assessment.API.Controllers
         {
             try
             {
+                // Ensure the candidate's JWT is scoped to the test they're submitting for
+                var claimedTestId = User.FindFirst("testId")?.Value;
+                if (claimedTestId == null || !Guid.TryParse(claimedTestId, out var claimedGuid) || claimedGuid != dto.TestId)
+                    return Forbid();
+
                 var result = await _answers.SubmitAnswerAsync(dto);
                 return Ok(ApiResponse<object>.Success(result, "Saved"));
             }

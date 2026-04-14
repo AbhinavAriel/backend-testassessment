@@ -17,16 +17,29 @@ namespace Assessment.API.Controllers
             _questions = questions;
         }
 
+        [Authorize(Roles = "Candidate")]
         [HttpGet]
         public async Task<IActionResult> Get([FromQuery] Guid? testId = null)
         {
             try
             {
-                var list = testId.HasValue
-                    ? await _questions.GetQuestionsForTestAsync(testId.Value)
-                    : await _questions.GetQuestionsAsync();
+                if (testId.HasValue)
+                {
+                    // Candidate can only fetch questions for their own test
+                    var claimedTestId = User.FindFirst("testId")?.Value;
+                    if (claimedTestId == null || !Guid.TryParse(claimedTestId, out var claimedGuid) || claimedGuid != testId.Value)
+                        return Forbid();
 
-                return Ok(ApiResponse<List<QuestionResponseDto>>.Success(list));
+                    var list = await _questions.GetQuestionsForTestAsync(testId.Value);
+                    return Ok(ApiResponse<List<QuestionResponseDto>>.Success(list));
+                }
+
+                // Listing all questions requires Admin
+                if (!User.IsInRole("Admin"))
+                    return Forbid();
+
+                var all = await _questions.GetQuestionsAsync();
+                return Ok(ApiResponse<List<QuestionResponseDto>>.Success(all));
             }
             catch (ArgumentException ex) { return BadRequest(ApiResponse<object>.Fail(ex.Message)); }
             catch (KeyNotFoundException ex) { return NotFound(ApiResponse<object>.Fail(ex.Message)); }

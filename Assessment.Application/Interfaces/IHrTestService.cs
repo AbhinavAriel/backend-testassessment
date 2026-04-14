@@ -16,6 +16,7 @@ namespace Assessment.Application.Interfaces
         Task<HrTestTokenResponseDto> GetByTokenAsync(string token);
         Task<HrApplicantDto> GetApplicantByIdAsync(Guid applicantId);
         Task<List<QuestionResponseDto>> GetQuestionsForTestAsync(Guid testId);
+        Task<BeginTestResultDto> BeginTestAsync(Guid testId); 
         Task SubmitTestAsync(Guid testId);
         Task<HrTestReportDto> GetReportAsync(Guid testId);
         Task DeleteTestAsync(Guid testId);
